@@ -18,12 +18,11 @@ impl Position {
 }
 #[derive(Debug)]
 pub struct ParsedString {
-    position: u16,
     chars: BTreeMap<char, u16>,
 }
 
 impl ParsedString {
-    fn new(s: &str, position: u16) -> Self {
+    fn new(s: &str) -> Self {
         let mut chars = BTreeMap::new();
         for c in s.chars() {
             if c.is_alphabetic() && c.is_lowercase() {
@@ -33,15 +32,11 @@ impl ParsedString {
 
         chars = chars.into_iter().filter(|(_, count)| *count > 1).collect();
 
-        Self { position, chars }
+        Self { chars }
     }
 
     pub fn get_count(&self, c: char) -> Option<u16> {
         self.chars.get(&c).copied()
-    }
-
-    pub fn get_position(&self) -> u16 {
-        self.position
     }
 
     pub fn get_unique_chars(&self) -> Vec<char> {
@@ -49,15 +44,13 @@ impl ParsedString {
     }
 }
 
-pub fn repr(c: Vec<(u16, char, Position)>) -> String {
-    c.into_iter()
+pub fn repr(c: &[(u16, char, Position)]) -> String {
+    c.iter()
         .map(|(count, c, position)| {
             format!(
                 "{}:{}",
                 position.as_char(),
-                std::iter::repeat(c)
-                    .take(count as usize)
-                    .collect::<String>()
+                std::iter::repeat_n(*c, *count as usize).collect::<String>()
             )
         })
         .collect::<Vec<_>>()
@@ -65,44 +58,40 @@ pub fn repr(c: Vec<(u16, char, Position)>) -> String {
 }
 
 fn mix(s1: &str, s2: &str) -> String {
-    let parsed1 = ParsedString::new(s1, 1);
-    let parsed2 = ParsedString::new(s2, 2);
+    let parsed1 = ParsedString::new(s1);
+    let parsed2 = ParsedString::new(s2);
     let unique_chars: HashSet<char> = parsed1
         .get_unique_chars()
         .into_iter()
-        .chain(parsed2.get_unique_chars().into_iter())
+        .chain(parsed2.get_unique_chars())
         .collect();
 
     let mut combined_chars = unique_chars
         .into_iter()
-        .filter_map(|c| {
-            let count1 = parsed1.get_count(c);
-            let count2 = parsed2.get_count(c);
+        .map(|c| {
+            let c1 = parsed1.get_count(c).unwrap_or(0);
+            let c2 = parsed2.get_count(c).unwrap_or(0);
 
-            let (position, count) = if count1 == count2 {
-                (Position::Equal, count1.unwrap_or(0))
+            let (position, count) = if c1 == c2 {
+                (Position::Equal, c1)
+            } else if c1 > c2 {
+                (Position::First, c1)
             } else {
-                let max_count = count1.unwrap_or(0).max(count2.unwrap_or(0));
-                let position = if count1.unwrap_or(0) > count2.unwrap_or(0) {
-                    Position::First
-                } else {
-                    Position::Second
-                };
-                (position, max_count)
+                (Position::Second, c2)
             };
-            Some((count, c, position))
+            (count, c, position)
         })
         .collect::<Vec<_>>();
 
-    // Sort by count in descending order, then by position (First > Second > Equal) and then by character
+    // Sort by count in descending order, then by position (First < Second < Equal) and then by character
     combined_chars
         .sort_by_key(|(count, char, position)| (std::cmp::Reverse(*count), *position, *char));
 
-    repr(combined_chars)
+    repr(&combined_chars)
 }
 
 fn main() {
-    mix("eeasdhAA", "eeuiiiuoadsl");
+    println!("{}", mix("eeasdhAA", "eeuiiiuoadsl"));
 }
 
 #[cfg(test)]
