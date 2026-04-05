@@ -3,22 +3,32 @@ use num::traits::{One, Zero};
 use std::ops::Neg;
 
 pub fn fib(n: i32) -> BigInt {
-    if n == 0 {
-        return BigInt::zero();
-    }
-
     let negative = n < 0;
     let n = n.unsigned_abs() as usize;
 
-    let mut a = BigInt::zero();
-    let mut b = BigInt::one();
-    for _ in 1..n {
-        let tmp = &a + &b;
-        a = b;
-        b = tmp;
+    let (f, _) = fast_doubling(n);
+
+    if negative && n % 2 == 0 { f.neg() } else { f }
+}
+
+// Returns (F(n), F(n+1))
+fn fast_doubling(n: usize) -> (BigInt, BigInt) {
+    if n == 0 {
+        return (BigInt::zero(), BigInt::one());
     }
 
-    if negative && n % 2 == 0 { b.neg() } else { b }
+    let (fk, fk1) = fast_doubling(n / 2);
+
+    // F(2k) = F(k) * (2*F(k+1) - F(k))
+    let f2k = &fk * (2 * &fk1 - &fk);
+    // F(2k+1) = F(k)^2 + F(k+1)^2
+    let f2k1 = &fk * &fk + &fk1 * &fk1;
+
+    if n % 2 == 0 {
+        (f2k, f2k1)
+    } else {
+        (f2k1.clone(), f2k + f2k1)
+    }
 }
 fn main() {
     println!("{}", fib(29138139));
